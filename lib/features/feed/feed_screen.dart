@@ -99,19 +99,52 @@ class FeedScreen extends ConsumerWidget {
                         .read(listingsControllerProvider.notifier)
                         .refresh();
                   },
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: listings.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final listing = listings[index];
-                      return ListingCard(
-                        listing: listing,
-                        onTap: () =>
-                            context.push('/home/listing/${listing.id}'),
-                        onWhatsApp: () => launchWhatsApp(listing.whatsappNumber),
-                      );
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      final controller =
+                          ref.read(listingsControllerProvider.notifier);
+                      if (notification.metrics.pixels >=
+                              notification.metrics.maxScrollExtent - 200 &&
+                          controller.hasMore &&
+                          !controller.isLoadingMore) {
+                        controller.loadMore();
+                      }
+                      return false;
                     },
+                    child: ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: listings.length + 1,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        if (index >= listings.length) {
+                          final controller =
+                              ref.read(listingsControllerProvider.notifier);
+                          if (controller.isLoadingMore) {
+                            return const ListingCardSkeleton();
+                          }
+                          if (controller.hasMore) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Center(
+                              child: Text(
+                                'No more listings',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          );
+                        }
+                        final listing = listings[index];
+                        return ListingCard(
+                          listing: listing,
+                          onTap: () =>
+                              context.push('/home/listing/${listing.id}'),
+                          onWhatsApp: () =>
+                              launchWhatsApp(listing.whatsappNumber),
+                        );
+                      },
+                    ),
                   ),
                 );
               },

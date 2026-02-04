@@ -19,6 +19,22 @@ class MockListingsRepository implements ListingsRepository {
   }
 
   @override
+  Future<ListingsPage> getPage({String? cursor, int limit = 10}) async {
+    final sorted = List<Listing>.from(_listings)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    int startIndex = 0;
+    if (cursor != null) {
+      final index = sorted.indexWhere((listing) => listing.id == cursor);
+      if (index != -1) {
+        startIndex = index + 1;
+      }
+    }
+    final pageItems = sorted.skip(startIndex).take(limit).toList();
+    final nextCursor = pageItems.length == limit ? pageItems.last.id : null;
+    return ListingsPage(items: pageItems, nextCursor: nextCursor);
+  }
+
+  @override
   Future<Listing?> getById(String id) async {
     return _listings.where((listing) => listing.id == id).firstOrNull;
   }

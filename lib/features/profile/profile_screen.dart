@@ -14,12 +14,14 @@ class ProfileScreen extends ConsumerWidget {
     final user = ref.watch(userProfileProvider);
     final listingsState = ref.watch(listingsControllerProvider);
     final settings = ref.watch(settingsProvider);
+    final authState = ref.watch(authStateProvider);
+    final firebaseUser = authState.asData?.value;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: listingsState.when(
         data: (listings) {
-          if (!user.isAuthenticated) {
+          if (firebaseUser == null) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -31,7 +33,7 @@ class ProfileScreen extends ConsumerWidget {
                     const Text('Sign in to manage your profile'),
                     const SizedBox(height: 12),
                     FilledButton(
-                      onPressed: () {},
+                      onPressed: () => context.go('/auth/phone'),
                       child: const Text('Sign in'),
                     ),
                   ],
@@ -39,8 +41,10 @@ class ProfileScreen extends ConsumerWidget {
               ),
             );
           }
+          final displayNumber =
+              firebaseUser.phoneNumber ?? user.whatsappNumber;
           final myListings = listings
-              .where((listing) => listing.whatsappNumber == user.whatsappNumber)
+              .where((listing) => listing.whatsappNumber == displayNumber)
               .toList();
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -48,8 +52,8 @@ class ProfileScreen extends ConsumerWidget {
               ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.person_outline)),
                 title: Text(user.name),
-                subtitle: Text(user.whatsappNumber),
-                trailing: user.isPhoneVerified
+                subtitle: Text(displayNumber),
+                trailing: firebaseUser.phoneNumber != null
                     ? const Chip(
                         label: Text('Phone verified'),
                         avatar: Icon(Icons.verified, size: 16),

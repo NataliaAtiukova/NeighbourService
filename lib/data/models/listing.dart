@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum ListingType { provider, looking }
 
 class Listing {
@@ -34,6 +36,61 @@ class Listing {
   final bool isPhoneVerified;
   final String whatsappNumber;
   final DateTime createdAt;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'type': type.name,
+      'category': category,
+      'title': title,
+      'description': description,
+      'priceFrom': priceFrom,
+      'currency': currency,
+      'suburb': suburb,
+      'worksDuringLoadShedding': worksDuringLoadShedding,
+      'needsElectricity': needsElectricity,
+      'rating': rating,
+      'reviewsCount': reviewsCount,
+      'isPhoneVerified': isPhoneVerified,
+      'whatsappNumber': whatsappNumber,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  factory Listing.fromMap(String id, Map<String, dynamic> data) {
+    final createdAtValue = data['createdAt'];
+    DateTime createdAt;
+    if (createdAtValue is DateTime) {
+      createdAt = createdAtValue;
+    } else if (createdAtValue is String) {
+      createdAt = DateTime.tryParse(createdAtValue) ?? DateTime.now();
+    } else if (createdAtValue is Timestamp) {
+      createdAt = createdAtValue.toDate();
+    } else {
+      createdAt = DateTime.now();
+    }
+
+    return Listing(
+      id: id,
+      type: ListingType.values.firstWhere(
+        (value) => value.name == data['type'],
+        orElse: () => ListingType.provider,
+      ),
+      category: data['category'] as String? ?? 'Cleaning',
+      title: data['title'] as String? ?? '',
+      description: data['description'] as String? ?? '',
+      priceFrom: data['priceFrom'] as int?,
+      currency: data['currency'] as String? ?? 'ZAR',
+      suburb: data['suburb'] as String? ?? '',
+      worksDuringLoadShedding:
+          data['worksDuringLoadShedding'] as bool? ?? false,
+      needsElectricity: data['needsElectricity'] as bool? ?? false,
+      rating: (data['rating'] as num?)?.toDouble() ?? 0,
+      reviewsCount: data['reviewsCount'] as int? ?? 0,
+      isPhoneVerified: data['isPhoneVerified'] as bool? ?? false,
+      whatsappNumber: data['whatsappNumber'] as String? ?? '',
+      createdAt: createdAt,
+    );
+  }
 
   Listing copyWith({
     String? id,

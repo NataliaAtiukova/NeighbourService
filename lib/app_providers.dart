@@ -1,13 +1,21 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/models/listing.dart';
 import 'data/models/review.dart';
 import 'data/repositories/listings_repository.dart';
+import 'data/repositories/firebase/firebase_listings_repository.dart';
 import 'data/repositories/mock/mock_listings_repository.dart';
 import 'shared/utils/constants.dart';
 
 final listingsRepositoryProvider = Provider<ListingsRepository>((ref) {
+  final useFirebase = Firebase.apps.isNotEmpty;
+  if (useFirebase) {
+    return FirebaseListingsRepository(FirebaseFirestore.instance);
+  }
   return MockListingsRepository();
 });
 
@@ -17,12 +25,20 @@ class ListingsController extends StateNotifier<AsyncValue<List<Listing>>> {
   }
 
   final ListingsRepository _repository;
+  String? _cursor;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
 
   Future<void> load() async {
     state = const AsyncLoading();
     try {
-      final listings = await _repository.getAll();
-      state = AsyncData(listings);
+      final page = await _repository.getPage(limit: 10);
+      _cursor = page.nextCursor;
+      _hasMore = _cursor != null;
+      state = AsyncData(page.items);
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
     }
@@ -30,6 +46,19 @@ class ListingsController extends StateNotifier<AsyncValue<List<Listing>>> {
 
   Future<void> refresh() async {
     await load();
+  }
+
+  Future<void> loadMore() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    try {
+      final page = await _repository.getPage(cursor: _cursor, limit: 10);
+      _cursor = page.nextCursor;
+      _hasMore = _cursor != null;
+      state = state.whenData((items) => [...items, ...page.items]);
+    } finally {
+      _isLoadingMore = false;
+    }
   }
 
   Future<void> add(Listing listing) async {
@@ -65,6 +94,17 @@ final reviewsProvider =
 
 final allReviewsProvider = FutureProvider<List<Review>>((ref) {
   return ref.watch(listingsRepositoryProvider).getAllReviews();
+});
+
+final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
+  return FirebaseAuth.instance;
+});
+
+final authStateProvider = StreamProvider<User?>((ref) {
+  if (Firebase.apps.isEmpty) {
+    return Stream<User?>.value(null);
+  }
+  return ref.watch(firebaseAuthProvider).authStateChanges();
 });
 
 class FiltersState {

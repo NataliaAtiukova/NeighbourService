@@ -1,4 +1,4 @@
-package com.example.neighbour_services
+package com.nataliaatiukova.neighbourservices
 
 import io.flutter.embedding.android.FlutterActivity
 

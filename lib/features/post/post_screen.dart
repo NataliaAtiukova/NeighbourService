@@ -68,9 +68,12 @@ class _PostScreenState extends ConsumerState<PostScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(userProfileProvider);
+    final authState = ref.watch(authStateProvider);
+    final firebaseUser = authState.asData?.value;
     final listingAsync = widget.listingId == null
         ? const AsyncValue<Listing?>.data(null)
         : ref.watch(listingDetailsProvider(widget.listingId!));
+    final whatsappNumber = firebaseUser?.phoneNumber ?? user.whatsappNumber;
 
     return Scaffold(
       appBar: AppBar(
@@ -79,7 +82,7 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.all(16),
         child: FilledButton(
-          onPressed: () => _submit(user.whatsappNumber),
+          onPressed: () => _submit(whatsappNumber),
           child: Text(_isEditing ? 'Update' : 'Publish'),
         ),
       ),
@@ -220,7 +223,7 @@ class _PostScreenState extends ConsumerState<PostScreen> {
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
-                  initialValue: user.whatsappNumber,
+                  initialValue: whatsappNumber,
                   readOnly: true,
                   decoration: const InputDecoration(
                     labelText: 'WhatsApp number',
