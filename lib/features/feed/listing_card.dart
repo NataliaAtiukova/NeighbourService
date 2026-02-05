@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../data/models/listing.dart';
 import '../../shared/utils/formatters.dart';
+import '../../shared/utils/motion.dart';
+import '../../shared/widgets/press_scale.dart';
 
 class ListingCard extends StatelessWidget {
   const ListingCard({
@@ -34,8 +36,12 @@ class ListingCard extends StatelessWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(_iconForCategory(listing.category)),
+                    backgroundColor:
+                        theme.colorScheme.primary.withOpacity(0.18),
+                    child: Icon(
+                      _iconForCategory(listing.category),
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -61,16 +67,22 @@ class ListingCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(listing.suburb, style: theme.textTheme.bodySmall),
                   const SizedBox(width: 12),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      availabilityLabel,
-                      style: theme.textTheme.labelSmall,
+                  AnimatedSwitcher(
+                    duration: MotionDurations.fast,
+                    switchInCurve: MotionCurves.standard,
+                    switchOutCurve: MotionCurves.standard,
+                    child: Container(
+                      key: ValueKey(availabilityLabel),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        availabilityLabel,
+                        style: theme.textTheme.labelSmall,
+                      ),
                     ),
                   ),
                 ],
@@ -85,10 +97,13 @@ class ListingCard extends StatelessWidget {
                     style: theme.textTheme.bodySmall,
                   ),
                   const Spacer(),
-                  FilledButton.tonalIcon(
-                    onPressed: onWhatsApp,
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    label: const Text('WhatsApp'),
+                  PressScale(
+                    enableHaptics: true,
+                    child: FilledButton.tonalIcon(
+                      onPressed: onWhatsApp,
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: const Text('WhatsApp'),
+                    ),
                   ),
                 ],
               ),

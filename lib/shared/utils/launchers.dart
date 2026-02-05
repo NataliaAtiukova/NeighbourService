@@ -7,9 +7,10 @@ Future<void> launchWhatsApp({
   required String number,
   required String message,
 }) async {
+  final messenger = ScaffoldMessenger.of(context);
   final digitsOnly = number.replaceAll(RegExp(r'\\D'), '');
   if (digitsOnly.isEmpty) {
-    _showSnack(context, 'Invalid phone number.');
+    _showSnack(messenger, 'Invalid phone number.');
     return;
   }
 
@@ -34,7 +35,7 @@ Future<void> launchWhatsApp({
   await Clipboard.setData(
     ClipboardData(text: '$number\\n$message'),
   );
-  _showSnack(context, 'WhatsApp not installed. Number copied.');
+  _showSnack(messenger, 'WhatsApp not installed. Number copied.');
 
   final marketUrl = Uri.parse('market://details?id=com.whatsapp');
   final webUrl = Uri.parse(
@@ -47,8 +48,8 @@ Future<void> launchWhatsApp({
   }
 }
 
-void _showSnack(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
+void _showSnack(ScaffoldMessengerState messenger, String message) {
+  messenger.showSnackBar(
     SnackBar(content: Text(message)),
   );
 }

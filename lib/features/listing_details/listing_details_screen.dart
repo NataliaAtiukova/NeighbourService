@@ -5,6 +5,7 @@ import '../../app_providers.dart';
 import '../../shared/utils/formatters.dart';
 import '../../shared/utils/launchers.dart';
 import '../../shared/widgets/skeletons.dart';
+import '../../shared/widgets/press_scale.dart';
 
 class ListingDetailsScreen extends ConsumerWidget {
   const ListingDetailsScreen({super.key, required this.listingId});
@@ -30,15 +31,18 @@ class ListingDetailsScreen extends ConsumerWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => launchWhatsApp(
-                      context: context,
-                      number: listing.whatsappNumber,
-                      message:
-                          'Hi! I saw your listing \"${listing.title}\" in ${listing.suburb}.',
+                  child: PressScale(
+                    enableHaptics: true,
+                    child: FilledButton.icon(
+                      onPressed: () => launchWhatsApp(
+                        context: context,
+                        number: listing.whatsappNumber,
+                        message:
+                            'Hi! I saw your listing "${listing.title}" in ${listing.suburb}.',
+                      ),
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: const Text('WhatsApp'),
                     ),
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    label: const Text('WhatsApp'),
                   ),
                 ),
                 const SizedBox(width: 12),

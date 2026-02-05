@@ -177,19 +177,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     error: (error, _) => const Text('Unable to load listings'),
                     data: (myListings) {
                       if (myListings.isEmpty) {
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('No listings yet'),
-                                const SizedBox(height: 8),
-                                FilledButton(
-                                  onPressed: () => context.go('/post'),
-                                  child: const Text('Create listing'),
-                                ),
-                              ],
+                        return TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 280),
+                          builder: (context, value, child) {
+                            return Opacity(
+                              opacity: value,
+                              child: Transform.translate(
+                                offset: Offset(0, (1 - value) * 12),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('No listings yet'),
+                                  const SizedBox(height: 8),
+                                  FilledButton(
+                                    onPressed: () => context.go('/post'),
+                                    child: const Text('Create listing'),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -201,58 +214,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 child: ListTile(
                                   title: Text(listing.title),
                                   subtitle: Text(formatPrice(listing.priceFrom)),
-                                  trailing: Wrap(
-                                    spacing: 8,
-                                    children: [
-                                      IconButton(
-                                        icon:
-                                            const Icon(Icons.edit_outlined),
-                                        onPressed: () => context
-                                            .go('/post/edit/${listing.id}'),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_outline),
-                                        onPressed: () async {
-                                          final confirmed = await showDialog<
-                                              bool>(
-                                            context: context,
-                                            builder: (context) => AlertDialog(
-                                              title: const Text('Delete listing'),
-                                              content: const Text(
-                                                  'Are you sure you want to delete this listing?'),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.of(context)
-                                                          .pop(false),
-                                                  child: const Text('Cancel'),
-                                                ),
-                                                FilledButton(
-                                                  onPressed: () =>
-                                                      Navigator.of(context)
-                                                          .pop(true),
-                                                  child: const Text('Delete'),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                          if (confirmed != true) return;
-                                          await ref
-                                              .read(listingsControllerProvider
-                                                  .notifier)
-                                              .delete(listing.id);
-                                          ref.invalidate(myListingsProvider(
-                                              firebaseUser.uid));
-                                          if (!context.mounted) return;
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                                content:
-                                                    Text('Listing deleted')),
-                                          );
-                                        },
-                                      ),
-                                    ],
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.more_vert),
+                                    onPressed: () => _showListingActions(
+                                      ref,
+                                      context,
+                                      listingId: listing.id,
+                                      userId: firebaseUser.uid,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -261,17 +230,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       );
                     },
                   ),
-                  const SizedBox(height: 24),
-                  Text('Reviews received',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  _ReviewsSection(
-                    listingIds: myListingsAsync.maybeWhen(
-                      data: (items) => items.map((e) => e.id).toList(),
-                      orElse: () => const [],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
                   Text('Settings',
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
@@ -284,6 +242,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           .updateTheme(value ? ThemeMode.dark : ThemeMode.light);
                     },
                   ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await ref.read(firebaseAuthProvider).signOut();
+                    },
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Sign out'),
+                  ),
                   const SizedBox(height: 80),
                 ],
               );
@@ -295,48 +261,66 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 }
 
-class _ReviewsSection extends ConsumerWidget {
-  const _ReviewsSection({required this.listingIds});
+Future<void> _showListingActions(
+  WidgetRef ref,
+  BuildContext context, {
+  required String listingId,
+  required String userId,
+}) async {
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Edit listing'),
+              onTap: () => Navigator.of(context).pop('edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Delete listing'),
+              onTap: () => Navigator.of(context).pop('delete'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 
-  final List<String> listingIds;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (listingIds.isEmpty) {
-      return const Text('No reviews yet.');
-    }
-    final reviewsAsync = ref.watch(allReviewsProvider);
-    return reviewsAsync.when(
-      loading: () => const LinearProgressIndicator(),
-      error: (error, _) => const Text('Unable to load reviews'),
-      data: (reviews) {
-        final myReviews = reviews
-            .where((review) => listingIds.contains(review.listingId))
-            .toList();
-        if (myReviews.isEmpty) {
-          return const Text('No reviews yet.');
-        }
-        return Column(
-          children: myReviews
-              .take(3)
-              .map(
-                (review) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(review.authorName),
-                  subtitle: Text(review.text),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.star, size: 16, color: Colors.amber.shade700),
-                      const SizedBox(width: 4),
-                      Text(review.rating.toString()),
-                    ],
-                  ),
-                ),
-              )
-              .toList(),
-        );
-      },
+  if (action == 'edit') {
+    if (!context.mounted) return;
+    context.go('/post/edit/$listingId');
+  } else if (action == 'delete') {
+    if (!context.mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete listing'),
+        content: const Text('Are you sure you want to delete this listing?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref
+        .read(listingsControllerProvider.notifier)
+        .delete(listingId);
+    ref.invalidate(myListingsProvider(userId));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Listing deleted')),
     );
   }
 }

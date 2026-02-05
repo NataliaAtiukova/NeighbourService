@@ -9,6 +9,7 @@ import 'features/listing_details/listing_details_screen.dart';
 import 'features/post/post_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'shared/widgets/app_scaffold.dart';
+import 'shared/utils/motion.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -34,9 +35,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth/phone',
         name: 'phoneAuth',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final redirectTo = state.uri.queryParameters['from'];
-          return PhoneAuthScreen(redirectTo: redirectTo);
+          return _buildPage(
+            state,
+            PhoneAuthScreen(redirectTo: redirectTo),
+          );
         },
       ),
       StatefulShellRoute.indexedStack(
@@ -49,14 +53,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/home',
                 name: 'home',
-                builder: (context, state) => const FeedScreen(),
+                pageBuilder: (context, state) =>
+                    _buildPage(state, const FeedScreen()),
                 routes: [
                   GoRoute(
                     path: 'listing/:id',
                     name: 'listing',
-                    builder: (context, state) {
+                    pageBuilder: (context, state) {
                       final id = state.pathParameters['id']!;
-                      return ListingDetailsScreen(listingId: id);
+                      return _buildPage(
+                        state,
+                        ListingDetailsScreen(listingId: id),
+                      );
                     },
                   ),
                 ],
@@ -68,14 +76,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/post',
                 name: 'post',
-                builder: (context, state) => const PostScreen(),
+                pageBuilder: (context, state) =>
+                    _buildPage(state, const PostScreen()),
                 routes: [
                   GoRoute(
                     path: 'edit/:id',
                     name: 'editListing',
-                    builder: (context, state) {
+                    pageBuilder: (context, state) {
                       final id = state.pathParameters['id']!;
-                      return PostScreen(listingId: id);
+                      return _buildPage(
+                        state,
+                        PostScreen(listingId: id),
+                      );
                     },
                   ),
                 ],
@@ -87,7 +99,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/profile',
                 name: 'profile',
-                builder: (context, state) => const ProfileScreen(),
+                pageBuilder: (context, state) =>
+                    _buildPage(state, const ProfileScreen()),
               ),
             ],
           ),
@@ -96,3 +109,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+CustomTransitionPage<void> _buildPage(GoRouterState state, Widget child) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    transitionDuration: MotionDurations.medium,
+    reverseTransitionDuration: MotionDurations.fast,
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: MotionCurves.standard,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: kPageSlideOffset,
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}

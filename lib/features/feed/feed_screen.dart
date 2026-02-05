@@ -5,19 +5,35 @@ import 'package:go_router/go_router.dart';
 import '../../app_providers.dart';
 import '../../shared/utils/constants.dart';
 import '../../shared/utils/launchers.dart';
+import '../../shared/utils/motion.dart';
+import '../../shared/widgets/animated_filter_chip.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/skeletons.dart';
 import 'filters_bottom_sheet.dart';
 import 'listing_card.dart';
 
-class FeedScreen extends ConsumerWidget {
+class FeedScreen extends ConsumerStatefulWidget {
   const FeedScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FeedScreen> createState() => _FeedScreenState();
+}
+
+class _FeedScreenState extends ConsumerState<FeedScreen> {
+  bool _animateOnAppear = true;
+
+  @override
+  Widget build(BuildContext context) {
     final listingsState = ref.watch(listingsControllerProvider);
     final listings = ref.watch(filteredListingsProvider);
     final suburb = ref.watch(currentSuburbProvider);
+
+    if (_animateOnAppear) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _animateOnAppear = false);
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -136,14 +152,19 @@ class FeedScreen extends ConsumerWidget {
                           );
                         }
                         final listing = listings[index];
-                        return ListingCard(
-                          listing: listing,
-                          onTap: () =>
-                              context.push('/home/listing/${listing.id}'),
-                          onWhatsApp: () => launchWhatsApp(
-                            context: context,
-                            number: listing.whatsappNumber,
-                            message: 'Hi! I saw your listing \"${listing.title}\" in ${listing.suburb}.',
+                        return _AnimatedListItem(
+                          index: index,
+                          animate: _animateOnAppear,
+                          child: ListingCard(
+                            listing: listing,
+                            onTap: () =>
+                                context.push('/home/listing/${listing.id}'),
+                            onWhatsApp: () => launchWhatsApp(
+                              context: context,
+                              number: listing.whatsappNumber,
+                              message:
+                                  'Hi! I saw your listing "${listing.title}" in ${listing.suburb}.',
+                            ),
                           ),
                         );
                       },
@@ -176,8 +197,8 @@ class _FilterRow extends ConsumerWidget {
             for (final category in kCategories)
               Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: FilterChip(
-                  label: Text(category),
+                child: AnimatedFilterChip(
+                  label: category,
                   selected: filters.categories.contains(category),
                   onSelected: (selected) {
                     final next = Set<String>.from(filters.categories);
@@ -194,8 +215,8 @@ class _FilterRow extends ConsumerWidget {
               ),
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: const Text('Works during load-shedding'),
+              child: AnimatedFilterChip(
+                label: 'Works during load-shedding',
                 selected: filters.worksDuringLoadSheddingOnly,
                 onSelected: (selected) {
                   ref.read(filtersProvider.notifier).update(
@@ -206,8 +227,8 @@ class _FilterRow extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: const Text('No power needed'),
+              child: AnimatedFilterChip(
+                label: 'No power needed',
                 selected: filters.noPowerNeededOnly,
                 onSelected: (selected) {
                   ref.read(filtersProvider.notifier).update(
@@ -223,6 +244,39 @@ class _FilterRow extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AnimatedListItem extends StatelessWidget {
+  const _AnimatedListItem({
+    required this.index,
+    required this.animate,
+    required this.child,
+  });
+
+  final int index;
+  final bool animate;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration =
+        animate ? MotionDurations.stagger(index) : MotionDurations.fast;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: animate ? 0.0 : 1.0, end: 1.0),
+      duration: duration,
+      curve: MotionCurves.standard,
+      child: child,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 16),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app_providers.dart';
 import '../../shared/utils/constants.dart';
+import '../../shared/widgets/animated_filter_chip.dart';
 
 class FiltersBottomSheet extends ConsumerStatefulWidget {
   const FiltersBottomSheet({super.key});
@@ -64,8 +65,8 @@ class _FiltersBottomSheetState extends ConsumerState<FiltersBottomSheet> {
               runSpacing: 8,
               children: kCategories.map((category) {
                 final selected = _selectedCategories.contains(category);
-                return FilterChip(
-                  label: Text(category),
+                return AnimatedFilterChip(
+                  label: category,
                   selected: selected,
                   onSelected: (value) {
                     setState(() {

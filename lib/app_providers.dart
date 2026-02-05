@@ -269,7 +269,7 @@ final favoritesProvider =
 
 class SettingsState {
   const SettingsState({
-    this.themeMode = ThemeMode.system,
+    this.themeMode = ThemeMode.dark,
     this.suburb = 'Sea Point',
   });
 
