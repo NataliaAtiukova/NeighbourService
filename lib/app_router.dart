@@ -8,6 +8,7 @@ import 'features/feed/feed_screen.dart';
 import 'features/listing_details/listing_details_screen.dart';
 import 'features/post/post_screen.dart';
 import 'features/profile/profile_screen.dart';
+import 'features/splash/splash_screen.dart';
 import 'shared/widgets/app_scaffold.dart';
 import 'shared/utils/motion.dart';
 
@@ -15,11 +16,14 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
+  final profileStatus = ref.watch(profileStatusProvider);
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/home',
+    initialLocation: '/splash',
     redirect: (context, state) {
       if (authState.isLoading) return null;
+      if (profileStatus == ProfileStatus.loading) return null;
+      if (state.uri.path == '/splash') return null;
       final user = authState.asData?.value;
       final isAuthRoute = state.uri.path.startsWith('/auth');
       if (user == null && !isAuthRoute) {
@@ -27,11 +31,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return '/auth/phone?from=$from';
       }
       if (user != null && isAuthRoute) {
-        return '/post';
+        return '/home';
       }
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        pageBuilder: (context, state) => _buildFadePage(
+          state,
+          const SplashScreen(),
+        ),
+      ),
       GoRoute(
         path: '/auth/phone',
         name: 'phoneAuth',
@@ -130,6 +142,24 @@ CustomTransitionPage<void> _buildPage(GoRouterState state, Widget child) {
           ).animate(curved),
           child: child,
         ),
+      );
+    },
+  );
+}
+
+CustomTransitionPage<void> _buildFadePage(GoRouterState state, Widget child) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    transitionDuration: MotionDurations.medium,
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: MotionCurves.standard,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: child,
       );
     },
   );

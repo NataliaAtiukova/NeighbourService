@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -158,27 +156,44 @@ final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(firebaseAuthProvider).authStateChanges();
 });
 
-final authBootstrapProvider = Provider<void>((ref) {
-  ref.listen<User?>(
-    authStateProvider.select((value) => value.asData?.value),
-    (_, user) {
-      if (user == null) return;
-      unawaited(
-        ref.read(userProfileRepositoryProvider).ensureProfile(
-              user: user,
-              defaultSuburb: ref.read(settingsProvider).suburb,
-            ),
-      );
-    },
-  );
-});
-
 final userProfileProvider = StreamProvider<UserProfile?>((ref) {
   final user = ref.watch(authStateProvider).asData?.value;
   if (user == null) {
     return Stream<UserProfile?>.value(null);
   }
   return ref.watch(userProfileRepositoryProvider).watchProfile(user.uid);
+});
+
+enum ProfileStatus { loading, signedOut, ready }
+
+final profileBootstrapProvider = FutureProvider<void>((ref) async {
+  final auth = ref.watch(authStateProvider);
+  if (auth.isLoading) return;
+  final user = auth.asData?.value;
+  if (user == null) return;
+
+  final repo = ref.watch(userProfileRepositoryProvider);
+  final existing = await repo.getProfile(user.uid);
+  if (existing != null) return;
+
+  final settings = ref.read(settingsProvider);
+  await repo.createProfile(
+    uid: user.uid,
+    displayName: 'You',
+    phoneNumber: user.phoneNumber ?? '',
+    suburb: settings.suburb,
+    isPhoneVerified: true,
+  );
+});
+
+final profileStatusProvider = Provider<ProfileStatus>((ref) {
+  final auth = ref.watch(authStateProvider);
+  if (auth.isLoading) return ProfileStatus.loading;
+  final user = auth.asData?.value;
+  if (user == null) return ProfileStatus.signedOut;
+  final bootstrap = ref.watch(profileBootstrapProvider);
+  if (bootstrap.isLoading) return ProfileStatus.loading;
+  return ProfileStatus.ready;
 });
 
 final currentSuburbProvider = Provider<String>((ref) {
