@@ -6,6 +6,7 @@ class Listing {
   const Listing({
     required this.id,
     required this.type,
+    required this.ownerUid,
     required this.category,
     required this.title,
     required this.description,
@@ -23,6 +24,7 @@ class Listing {
 
   final String id;
   final ListingType type;
+  final String ownerUid;
   final String category;
   final String title;
   final String description;
@@ -40,6 +42,7 @@ class Listing {
   Map<String, dynamic> toMap() {
     return {
       'type': type.name,
+      'ownerUid': ownerUid,
       'category': category,
       'title': title,
       'description': description,
@@ -58,6 +61,7 @@ class Listing {
 
   factory Listing.fromMap(String id, Map<String, dynamic> data) {
     final createdAtValue = data['createdAt'];
+    final clientCreatedAtValue = data['clientCreatedAt'];
     DateTime createdAt;
     if (createdAtValue is DateTime) {
       createdAt = createdAtValue;
@@ -65,6 +69,10 @@ class Listing {
       createdAt = DateTime.tryParse(createdAtValue) ?? DateTime.now();
     } else if (createdAtValue is Timestamp) {
       createdAt = createdAtValue.toDate();
+    } else if (clientCreatedAtValue is Timestamp) {
+      createdAt = clientCreatedAtValue.toDate();
+    } else if (clientCreatedAtValue is int) {
+      createdAt = DateTime.fromMillisecondsSinceEpoch(clientCreatedAtValue);
     } else {
       createdAt = DateTime.now();
     }
@@ -75,6 +83,7 @@ class Listing {
         (value) => value.name == data['type'],
         orElse: () => ListingType.provider,
       ),
+      ownerUid: data['ownerUid'] as String? ?? '',
       category: data['category'] as String? ?? 'Cleaning',
       title: data['title'] as String? ?? '',
       description: data['description'] as String? ?? '',
@@ -95,6 +104,7 @@ class Listing {
   Listing copyWith({
     String? id,
     ListingType? type,
+    String? ownerUid,
     String? category,
     String? title,
     String? description,
@@ -112,6 +122,7 @@ class Listing {
     return Listing(
       id: id ?? this.id,
       type: type ?? this.type,
+      ownerUid: ownerUid ?? this.ownerUid,
       category: category ?? this.category,
       title: title ?? this.title,
       description: description ?? this.description,

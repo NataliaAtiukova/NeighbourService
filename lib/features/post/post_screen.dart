@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app_providers.dart';
 import '../../data/models/listing.dart';
@@ -37,6 +38,7 @@ class _PostScreenState extends ConsumerState<PostScreen> {
     _worksDuringLoadShedding = false;
     _needsElectricity = false;
     _isEditing = widget.listingId != null;
+    _selectedSuburb = ref.read(currentSuburbProvider);
   }
 
   @override
@@ -67,13 +69,14 @@ class _PostScreenState extends ConsumerState<PostScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(userProfileProvider);
     final authState = ref.watch(authStateProvider);
     final firebaseUser = authState.asData?.value;
+    final profile = ref.watch(userProfileProvider).asData?.value;
     final listingAsync = widget.listingId == null
         ? const AsyncValue<Listing?>.data(null)
         : ref.watch(listingDetailsProvider(widget.listingId!));
-    final whatsappNumber = firebaseUser?.phoneNumber ?? user.whatsappNumber;
+    final whatsappNumber =
+        firebaseUser?.phoneNumber ?? profile?.phoneNumber ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -243,6 +246,14 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       return;
     }
 
+    final firebaseUser = ref.read(authStateProvider).asData?.value;
+    if (firebaseUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to publish a listing.')),
+      );
+      return;
+    }
+
     final price = int.tryParse(_priceController.text.trim());
     final availability = _availabilityController.text.trim();
     final baseDescription = stripAvailability(_descriptionController.text);
@@ -255,6 +266,7 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       id: widget.listingId ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       type: _type,
+      ownerUid: baseListing?.ownerUid ?? firebaseUser.uid,
       category: _selectedCategory!,
       title: _titleController.text.trim(),
       description: description,
@@ -274,6 +286,7 @@ class _PostScreenState extends ConsumerState<PostScreen> {
     } else {
       await ref.read(listingsControllerProvider.notifier).add(listing);
     }
+    ref.invalidate(myListingsProvider(firebaseUser.uid));
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -283,5 +296,24 @@ class _PostScreenState extends ConsumerState<PostScreen> {
             : 'Listing published'),
       ),
     );
+    if (!_isEditing) {
+      _resetForm();
+      context.go('/home');
+    }
+  }
+
+  void _resetForm() {
+    _formKey.currentState?.reset();
+    _titleController.clear();
+    _descriptionController.clear();
+    _availabilityController.clear();
+    _priceController.clear();
+    setState(() {
+      _type = ListingType.provider;
+      _selectedCategory = null;
+      _selectedSuburb = ref.read(currentSuburbProvider);
+      _worksDuringLoadShedding = false;
+      _needsElectricity = false;
+    });
   }
 }

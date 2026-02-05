@@ -17,7 +17,7 @@ class FeedScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final listingsState = ref.watch(listingsControllerProvider);
     final listings = ref.watch(filteredListingsProvider);
-    final suburb = ref.watch(settingsProvider).suburb;
+    final suburb = ref.watch(currentSuburbProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -140,8 +140,11 @@ class FeedScreen extends ConsumerWidget {
                           listing: listing,
                           onTap: () =>
                               context.push('/home/listing/${listing.id}'),
-                          onWhatsApp: () =>
-                              launchWhatsApp(listing.whatsappNumber),
+                          onWhatsApp: () => launchWhatsApp(
+                            context: context,
+                            number: listing.whatsappNumber,
+                            message: 'Hi! I saw your listing \"${listing.title}\" in ${listing.suburb}.',
+                          ),
                         );
                       },
                     ),

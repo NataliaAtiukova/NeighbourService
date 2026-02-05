@@ -21,8 +21,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.isLoading) return null;
       final user = authState.asData?.value;
       final isAuthRoute = state.uri.path.startsWith('/auth');
-      final isPostRoute = state.uri.path.startsWith('/post');
-      if (user == null && isPostRoute) {
+      if (user == null && !isAuthRoute) {
         final from = Uri.encodeComponent(state.uri.toString());
         return '/auth/phone?from=$from';
       }

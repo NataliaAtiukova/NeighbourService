@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -6,24 +8,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/models/listing.dart';
 import 'data/models/review.dart';
+import 'data/models/user_profile.dart';
 import 'data/repositories/listings_repository.dart';
 import 'data/repositories/firebase/firebase_listings_repository.dart';
 import 'data/repositories/mock/mock_listings_repository.dart';
+import 'data/repositories/firebase/firebase_user_profile_repository.dart';
+import 'data/repositories/user_profile_repository.dart';
 import 'shared/utils/constants.dart';
 
 final listingsRepositoryProvider = Provider<ListingsRepository>((ref) {
   final useFirebase = Firebase.apps.isNotEmpty;
   if (useFirebase) {
-    return FirebaseListingsRepository(FirebaseFirestore.instance);
+    return FirebaseListingsRepository(
+      FirebaseFirestore.instance,
+      FirebaseAuth.instance,
+    );
   }
   return MockListingsRepository();
 });
 
+final userProfileRepositoryProvider = Provider<UserProfileRepository>((ref) {
+  return FirebaseUserProfileRepository(FirebaseFirestore.instance);
+});
+
 class ListingsController extends StateNotifier<AsyncValue<List<Listing>>> {
-  ListingsController(this._repository) : super(const AsyncLoading()) {
+  ListingsController(this._ref, this._repository)
+      : super(const AsyncLoading()) {
     load();
   }
 
+  final Ref _ref;
   final ListingsRepository _repository;
   String? _cursor;
   bool _hasMore = true;
@@ -35,7 +49,12 @@ class ListingsController extends StateNotifier<AsyncValue<List<Listing>>> {
   Future<void> load() async {
     state = const AsyncLoading();
     try {
-      final page = await _repository.getPage(limit: 10);
+      _cursor = null;
+      _hasMore = true;
+      final page = await _repository.fetchListings(
+        query: _currentQuery(),
+        limit: 10,
+      );
       _cursor = page.nextCursor;
       _hasMore = _cursor != null;
       state = AsyncData(page.items);
@@ -52,7 +71,11 @@ class ListingsController extends StateNotifier<AsyncValue<List<Listing>>> {
     if (_isLoadingMore || !_hasMore) return;
     _isLoadingMore = true;
     try {
-      final page = await _repository.getPage(cursor: _cursor, limit: 10);
+      final page = await _repository.fetchListings(
+        query: _currentQuery(),
+        cursor: _cursor,
+        limit: 10,
+      );
       _cursor = page.nextCursor;
       _hasMore = _cursor != null;
       state = state.whenData((items) => [...items, ...page.items]);
@@ -61,9 +84,25 @@ class ListingsController extends StateNotifier<AsyncValue<List<Listing>>> {
     }
   }
 
-  Future<void> add(Listing listing) async {
-    await _repository.add(listing);
+  ListingsQuery _currentQuery() {
+    final filters = _ref.read(filtersProvider);
+    final suburb = _ref.read(currentSuburbProvider);
+    return ListingsQuery(
+      search: filters.search,
+      categories: filters.categories,
+      suburb: suburb,
+      worksDuringLoadShedding: filters.worksDuringLoadSheddingOnly ? true : null,
+      needsElectricity: filters.noPowerNeededOnly ? false : null,
+      minPrice: filters.minPrice,
+      maxPrice: filters.maxPrice,
+      sort: filters.sort,
+    );
+  }
+
+  Future<String> add(Listing listing) async {
+    final id = await _repository.add(listing);
     await load();
+    return id;
   }
 
   Future<void> update(Listing listing) async {
@@ -79,12 +118,24 @@ class ListingsController extends StateNotifier<AsyncValue<List<Listing>>> {
 
 final listingsControllerProvider =
     StateNotifierProvider<ListingsController, AsyncValue<List<Listing>>>(
-  (ref) => ListingsController(ref.watch(listingsRepositoryProvider)),
+  (ref) {
+    final controller =
+        ListingsController(ref, ref.watch(listingsRepositoryProvider));
+    ref.listen(filtersProvider, (_, __) => controller.load());
+    ref.listen(settingsProvider, (_, __) => controller.load());
+    ref.listen(userProfileProvider, (_, __) => controller.load());
+    return controller;
+  },
 );
 
 final listingDetailsProvider =
     FutureProvider.family<Listing?, String>((ref, id) {
   return ref.watch(listingsRepositoryProvider).getById(id);
+});
+
+final myListingsProvider =
+    FutureProvider.family<List<Listing>, String>((ref, ownerUid) {
+  return ref.watch(listingsRepositoryProvider).getByOwner(ownerUid);
 });
 
 final reviewsProvider =
@@ -105,6 +156,34 @@ final authStateProvider = StreamProvider<User?>((ref) {
     return Stream<User?>.value(null);
   }
   return ref.watch(firebaseAuthProvider).authStateChanges();
+});
+
+final authBootstrapProvider = Provider<void>((ref) {
+  ref.listen<User?>(
+    authStateProvider.select((value) => value.asData?.value),
+    (_, user) {
+      if (user == null) return;
+      unawaited(
+        ref.read(userProfileRepositoryProvider).ensureProfile(
+              user: user,
+              defaultSuburb: ref.read(settingsProvider).suburb,
+            ),
+      );
+    },
+  );
+});
+
+final userProfileProvider = StreamProvider<UserProfile?>((ref) {
+  final user = ref.watch(authStateProvider).asData?.value;
+  if (user == null) {
+    return Stream<UserProfile?>.value(null);
+  }
+  return ref.watch(userProfileRepositoryProvider).watchProfile(user.uid);
+});
+
+final currentSuburbProvider = Provider<String>((ref) {
+  final profile = ref.watch(userProfileProvider).asData?.value;
+  return profile?.suburb ?? ref.watch(settingsProvider).suburb;
 });
 
 class FiltersState {
@@ -163,69 +242,11 @@ final filtersProvider =
 
 final filteredListingsProvider = Provider<List<Listing>>((ref) {
   final listingsState = ref.watch(listingsControllerProvider);
-  final filters = ref.watch(filtersProvider);
   return listingsState.maybeWhen(
-    data: (listings) => _applyFilters(listings, filters),
+    data: (listings) => listings,
     orElse: () => [],
   );
 });
-
-List<Listing> _applyFilters(List<Listing> listings, FiltersState filters) {
-  Iterable<Listing> filtered = listings;
-  if (filters.search.trim().isNotEmpty) {
-    final term = filters.search.toLowerCase();
-    filtered = filtered.where((listing) {
-      return listing.title.toLowerCase().contains(term) ||
-          listing.description.toLowerCase().contains(term) ||
-          listing.category.toLowerCase().contains(term) ||
-          listing.suburb.toLowerCase().contains(term);
-    });
-  }
-  if (filters.categories.isNotEmpty) {
-    filtered = filtered.where((listing) =>
-        filters.categories.contains(listing.category));
-  }
-  if (filters.worksDuringLoadSheddingOnly) {
-    filtered = filtered.where((listing) => listing.worksDuringLoadShedding);
-  }
-  if (filters.noPowerNeededOnly) {
-    filtered = filtered.where((listing) => !listing.needsElectricity);
-  }
-  if (filters.minPrice != null) {
-    filtered = filtered.where((listing) {
-      if (listing.priceFrom == null) {
-        return false;
-      }
-      return listing.priceFrom! >= filters.minPrice!;
-    });
-  }
-  if (filters.maxPrice != null) {
-    filtered = filtered.where((listing) {
-      if (listing.priceFrom == null) {
-        return false;
-      }
-      return listing.priceFrom! <= filters.maxPrice!;
-    });
-  }
-
-  final result = filtered.toList();
-  switch (filters.sort) {
-    case SortOption.recent:
-      result.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      break;
-    case SortOption.rating:
-      result.sort((a, b) => b.rating.compareTo(a.rating));
-      break;
-    case SortOption.priceLowHigh:
-      result.sort((a, b) {
-        final aPrice = a.priceFrom ?? 999999;
-        final bPrice = b.priceFrom ?? 999999;
-        return aPrice.compareTo(bPrice);
-      });
-      break;
-  }
-  return result;
-}
 
 class FavoritesController extends StateNotifier<Set<String>> {
   FavoritesController() : super({});
@@ -279,21 +300,3 @@ final settingsProvider =
     StateNotifierProvider<SettingsController, SettingsState>(
   (ref) => SettingsController(),
 );
-
-class UserProfileState {
-  const UserProfileState({
-    this.name = 'You',
-    this.whatsappNumber = '+27825550123',
-    this.isPhoneVerified = true,
-    this.isAuthenticated = true,
-  });
-
-  final String name;
-  final String whatsappNumber;
-  final bool isPhoneVerified;
-  final bool isAuthenticated;
-}
-
-final userProfileProvider = Provider<UserProfileState>((ref) {
-  return const UserProfileState();
-});

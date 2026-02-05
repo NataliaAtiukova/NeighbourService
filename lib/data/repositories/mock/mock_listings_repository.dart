@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../models/listing.dart';
 import '../../models/review.dart';
 import '../listings_repository.dart';
+import '../../../shared/utils/constants.dart';
 
 class MockListingsRepository implements ListingsRepository {
   MockListingsRepository() {
@@ -19,17 +20,20 @@ class MockListingsRepository implements ListingsRepository {
   }
 
   @override
-  Future<ListingsPage> getPage({String? cursor, int limit = 10}) async {
-    final sorted = List<Listing>.from(_listings)
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  Future<ListingsPage> fetchListings({
+    required ListingsQuery query,
+    String? cursor,
+    int limit = 10,
+  }) async {
+    final filtered = _applyQuery(_listings, query);
     int startIndex = 0;
     if (cursor != null) {
-      final index = sorted.indexWhere((listing) => listing.id == cursor);
+      final index = filtered.indexWhere((listing) => listing.id == cursor);
       if (index != -1) {
         startIndex = index + 1;
       }
     }
-    final pageItems = sorted.skip(startIndex).take(limit).toList();
+    final pageItems = filtered.skip(startIndex).take(limit).toList();
     final nextCursor = pageItems.length == limit ? pageItems.last.id : null;
     return ListingsPage(items: pageItems, nextCursor: nextCursor);
   }
@@ -37,6 +41,13 @@ class MockListingsRepository implements ListingsRepository {
   @override
   Future<Listing?> getById(String id) async {
     return _listings.where((listing) => listing.id == id).firstOrNull;
+  }
+
+  @override
+  Future<List<Listing>> getByOwner(String ownerUid) async {
+    return _listings
+        .where((listing) => listing.ownerUid == ownerUid)
+        .toList();
   }
 
   @override
@@ -52,8 +63,14 @@ class MockListingsRepository implements ListingsRepository {
   }
 
   @override
-  Future<void> add(Listing listing) async {
+  Future<void> addReview(String listingId, Review review) async {
+    _reviews.add(review);
+  }
+
+  @override
+  Future<String> add(Listing listing) async {
     _listings.insert(0, listing);
+    return listing.id;
   }
 
   @override
@@ -75,6 +92,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '1',
         type: ListingType.provider,
+        ownerUid: 'user_1',
         category: 'Cleaning',
         title: 'Reliable home cleaning service',
         description:
@@ -92,6 +110,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '2',
         type: ListingType.provider,
+        ownerUid: 'user_2',
         category: 'Repair',
         title: 'Handyman for quick fixes',
         description: 'Doors, cupboards, shelves, and small repairs.',
@@ -108,6 +127,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '3',
         type: ListingType.looking,
+        ownerUid: 'user_3',
         category: 'Plumbing',
         title: 'Need urgent leak repair',
         description: 'Burst pipe in kitchen, need help today.',
@@ -124,6 +144,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '4',
         type: ListingType.provider,
+        ownerUid: 'user_4',
         category: 'Water/Gas Delivery',
         title: 'Water delivery in 2 hours',
         description: '20L water delivery across Atlantic seaboard.',
@@ -140,6 +161,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '5',
         type: ListingType.provider,
+        ownerUid: 'user_5',
         category: 'Babysitting',
         title: 'Evening babysitter available',
         description: 'Certified nanny, available weekdays after 5pm.',
@@ -156,6 +178,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '6',
         type: ListingType.provider,
+        ownerUid: 'user_6',
         category: 'Pet-sitting',
         title: 'Dog walking and pet care',
         description: 'Daily walks and feeding while you are away.',
@@ -172,6 +195,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '7',
         type: ListingType.looking,
+        ownerUid: 'user_7',
         category: 'Cleaning',
         title: 'Looking for weekly cleaner',
         description: 'Two-bedroom apartment, need Friday mornings.',
@@ -188,6 +212,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '8',
         type: ListingType.provider,
+        ownerUid: 'user_8',
         category: 'Plumbing',
         title: 'Qualified plumber on call',
         description: 'Geysers, leaks, and installations.',
@@ -204,6 +229,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '9',
         type: ListingType.provider,
+        ownerUid: 'user_9',
         category: 'Repair',
         title: 'Mobile phone screen repair',
         description: 'Same-day screen replacement for most models.',
@@ -220,6 +246,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '10',
         type: ListingType.provider,
+        ownerUid: 'user_10',
         category: 'Water/Gas Delivery',
         title: 'Gas cylinder refill & swap',
         description: '9kg and 19kg refills, delivery included.',
@@ -236,6 +263,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '11',
         type: ListingType.looking,
+        ownerUid: 'user_11',
         category: 'Babysitting',
         title: 'Need sitter for Saturday night',
         description: 'Two kids, ages 5 and 8. 6pm - 11pm.',
@@ -252,6 +280,7 @@ class MockListingsRepository implements ListingsRepository {
       Listing(
         id: '12',
         type: ListingType.provider,
+        ownerUid: 'user_12',
         category: 'Pet-sitting',
         title: 'Overnight pet sitting',
         description: 'Experienced sitter for dogs and cats.',
@@ -312,6 +341,62 @@ class MockListingsRepository implements ListingsRepository {
         createdAt: now.subtract(const Duration(days: 4)),
       ),
     ];
+  }
+
+  List<Listing> _applyQuery(List<Listing> listings, ListingsQuery query) {
+    Iterable<Listing> result = listings;
+    if (query.search != null && query.search!.trim().isNotEmpty) {
+      final term = query.search!.toLowerCase();
+      result = result.where((listing) {
+        return listing.title.toLowerCase().contains(term) ||
+            listing.description.toLowerCase().contains(term) ||
+            listing.category.toLowerCase().contains(term) ||
+            listing.suburb.toLowerCase().contains(term);
+      });
+    }
+    if (query.suburb != null && query.suburb!.isNotEmpty) {
+      result = result.where((listing) => listing.suburb == query.suburb);
+    }
+    if (query.categories.isNotEmpty) {
+      result = result.where((listing) => query.categories.contains(
+            listing.category,
+          ));
+    }
+    if (query.worksDuringLoadShedding == true) {
+      result = result.where((listing) => listing.worksDuringLoadShedding);
+    }
+    if (query.needsElectricity == false) {
+      result = result.where((listing) => !listing.needsElectricity);
+    }
+    if (query.minPrice != null) {
+      result = result.where((listing) {
+        if (listing.priceFrom == null) return false;
+        return listing.priceFrom! >= query.minPrice!;
+      });
+    }
+    if (query.maxPrice != null) {
+      result = result.where((listing) {
+        if (listing.priceFrom == null) return false;
+        return listing.priceFrom! <= query.maxPrice!;
+      });
+    }
+    final list = result.toList();
+    switch (query.sort) {
+      case SortOption.recent:
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case SortOption.rating:
+        list.sort((a, b) => b.rating.compareTo(a.rating));
+        break;
+      case SortOption.priceLowHigh:
+        list.sort((a, b) {
+          final aPrice = a.priceFrom ?? 999999;
+          final bPrice = b.priceFrom ?? 999999;
+          return aPrice.compareTo(bPrice);
+        });
+        break;
+    }
+    return list;
   }
 }
 

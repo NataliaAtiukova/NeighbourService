@@ -31,7 +31,12 @@ class ListingDetailsScreen extends ConsumerWidget {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => launchWhatsApp(listing.whatsappNumber),
+                    onPressed: () => launchWhatsApp(
+                      context: context,
+                      number: listing.whatsappNumber,
+                      message:
+                          'Hi! I saw your listing \"${listing.title}\" in ${listing.suburb}.',
+                    ),
                     icon: const Icon(Icons.chat_bubble_outline),
                     label: const Text('WhatsApp'),
                   ),

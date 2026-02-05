@@ -17,6 +17,7 @@ class NeighbourServicesApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(authBootstrapProvider);
     final router = ref.watch(appRouterProvider);
     final settings = ref.watch(settingsProvider);
     return MaterialApp.router(
