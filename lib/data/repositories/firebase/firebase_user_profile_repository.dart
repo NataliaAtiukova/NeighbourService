@@ -1,6 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
 import '../../models/user_profile.dart';
 import '../user_profile_repository.dart';
 
@@ -21,47 +19,33 @@ class FirebaseUserProfileRepository implements UserProfileRepository {
   }
 
   @override
-  Future<UserProfile> ensureProfile({
-    required User user,
-    required String defaultSuburb,
+  Future<UserProfile?> getProfile(String uid) async {
+    final snapshot = await _usersCollection.doc(uid).get();
+    if (!snapshot.exists) return null;
+    return UserProfile.fromMap(snapshot.id, snapshot.data()!);
+  }
+
+  @override
+  Future<void> createProfile({
+    required String uid,
+    required String displayName,
+    required String phoneNumber,
+    required String suburb,
+    required bool isPhoneVerified,
   }) async {
-    final docRef = _usersCollection.doc(user.uid);
+    final docRef = _usersCollection.doc(uid);
     final snapshot = await docRef.get();
+    final data = <String, dynamic>{
+      'displayName': displayName,
+      'phoneNumber': phoneNumber,
+      'suburb': suburb,
+      'isPhoneVerified': isPhoneVerified,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
     if (!snapshot.exists) {
-      final profile = UserProfile(
-        uid: user.uid,
-        displayName: 'You',
-        phoneNumber: user.phoneNumber ?? '',
-        suburb: defaultSuburb,
-        isPhoneVerified: user.phoneNumber != null,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      await docRef.set({
-        'displayName': profile.displayName,
-        'phoneNumber': profile.phoneNumber,
-        'suburb': profile.suburb,
-        'isPhoneVerified': profile.isPhoneVerified,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      return profile;
+      data['createdAt'] = FieldValue.serverTimestamp();
     }
-
-    final data = snapshot.data()!;
-    final needsUpdate = (data['phoneNumber'] as String? ?? '') !=
-            (user.phoneNumber ?? '') ||
-        (data['isPhoneVerified'] as bool? ?? false) !=
-            (user.phoneNumber != null);
-    if (needsUpdate) {
-      await docRef.update({
-        'phoneNumber': user.phoneNumber ?? '',
-        'isPhoneVerified': user.phoneNumber != null,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }
-
-    return UserProfile.fromMap(user.uid, data);
+    await docRef.set(data, SetOptions(merge: true));
   }
 
   @override
@@ -79,6 +63,6 @@ class FirebaseUserProfileRepository implements UserProfileRepository {
     if (suburb != null) {
       updates['suburb'] = suburb;
     }
-    await _usersCollection.doc(uid).update(updates);
+    await _usersCollection.doc(uid).set(updates, SetOptions(merge: true));
   }
 }

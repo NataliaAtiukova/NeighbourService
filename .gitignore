@@ -46,3 +46,6 @@ app.*.map.json
 
 # Firebase config (keep local)
 /android/app/google-services.json
+
+# Android signing keys (keep local)
+/android/key.properties

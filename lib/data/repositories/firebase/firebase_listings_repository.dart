@@ -219,6 +219,25 @@ class FirebaseListingsRepository implements ListingsRepository {
     ListingsQuery query,
   ) {
     Iterable<Listing> result = listings;
+    if (query.suburb != null && query.suburb!.isNotEmpty) {
+      result = result.where((listing) => listing.suburb == query.suburb);
+    }
+    if (query.categories.isNotEmpty) {
+      result = result.where(
+        (listing) => query.categories.contains(listing.category),
+      );
+    }
+    if (query.worksDuringLoadShedding != null) {
+      result = result.where(
+        (listing) =>
+            listing.worksDuringLoadShedding == query.worksDuringLoadShedding,
+      );
+    }
+    if (query.needsElectricity != null) {
+      result = result.where(
+        (listing) => listing.needsElectricity == query.needsElectricity,
+      );
+    }
     if (query.search != null && query.search!.trim().isNotEmpty) {
       final term = query.search!.toLowerCase();
       result = result.where((listing) {
