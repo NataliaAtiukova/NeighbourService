@@ -184,21 +184,9 @@ class _PhoneAuthScreenState extends ConsumerState<PhoneAuthScreen> {
   }
 
   Future<void> _handleSignedIn() async {
-    final user = ref.read(firebaseAuthProvider).currentUser;
-    if (user != null) {
-      final repo = ref.read(userProfileRepositoryProvider);
-      final profile = await repo.getProfile(user.uid);
-      if (profile == null) {
-        final suburb = ref.read(settingsProvider).suburb;
-        await repo.createProfile(
-          uid: user.uid,
-          displayName: 'You',
-          phoneNumber: user.phoneNumber ?? '',
-          suburb: suburb,
-          isPhoneVerified: true,
-        );
-      }
-    }
+    try {
+      await ref.read(profileBootstrapProvider.future);
+    } catch (_) {}
     final target = widget.redirectTo == null
         ? '/home'
         : Uri.decodeComponent(widget.redirectTo!);

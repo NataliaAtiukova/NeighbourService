@@ -177,10 +177,49 @@ final profileBootstrapProvider = FutureProvider<void>((ref) async {
   if (existing != null) return;
 
   final settings = ref.read(settingsProvider);
+  final phone = user.phoneNumber ?? '';
+  if (phone.isNotEmpty) {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final match = await firestore
+          .collection('users')
+          .where('phoneNumber', isEqualTo: phone)
+          .limit(1)
+          .get();
+      if (match.docs.isNotEmpty) {
+        final oldDoc = match.docs.first;
+        if (oldDoc.id != user.uid) {
+          final data = oldDoc.data();
+          await firestore.collection('users').doc(user.uid).set(
+            {
+              'displayName': data['displayName'] ?? 'You',
+              'phoneNumber': phone,
+              'suburb': data['suburb'] ?? settings.suburb,
+              'isPhoneVerified': true,
+              'createdAt': data['createdAt'] ?? FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+              'migratedFromUid': oldDoc.id,
+            },
+            SetOptions(merge: true),
+          );
+
+          await _migrateListingsOwner(
+            firestore: firestore,
+            fromUid: oldDoc.id,
+            toUid: user.uid,
+          );
+          return;
+        }
+      }
+    } catch (_) {
+      // Ignore and fall back to default profile creation.
+    }
+  }
+
   await repo.createProfile(
     uid: user.uid,
     displayName: 'You',
-    phoneNumber: user.phoneNumber ?? '',
+    phoneNumber: phone,
     suburb: settings.suburb,
     isPhoneVerified: true,
   );
@@ -200,6 +239,23 @@ final currentSuburbProvider = Provider<String>((ref) {
   final profile = ref.watch(userProfileProvider).asData?.value;
   return profile?.suburb ?? ref.watch(settingsProvider).suburb;
 });
+
+Future<void> _migrateListingsOwner({
+  required FirebaseFirestore firestore,
+  required String fromUid,
+  required String toUid,
+}) async {
+  final snapshot = await firestore
+      .collection('listings')
+      .where('ownerUid', isEqualTo: fromUid)
+      .get();
+  if (snapshot.docs.isEmpty) return;
+  final batch = firestore.batch();
+  for (final doc in snapshot.docs) {
+    batch.update(doc.reference, {'ownerUid': toUid});
+  }
+  await batch.commit();
+}
 
 class FiltersState {
   const FiltersState({
