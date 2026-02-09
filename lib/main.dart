@@ -21,6 +21,7 @@ class NeighbourServicesApp extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     return MaterialApp.router(
       title: 'Neighbour Services',
+      debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: settings.themeMode,
