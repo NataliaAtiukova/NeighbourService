@@ -46,7 +46,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const Text('Sign in to manage your profile'),
                     const SizedBox(height: 12),
                     FilledButton(
-                      onPressed: () => context.go('/auth/phone'),
+                      onPressed: () => context.go('/onboarding'),
                       child: const Text('Sign in'),
                     ),
                   ],

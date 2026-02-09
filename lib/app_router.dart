@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'app_providers.dart';
-import 'features/auth/phone_auth_screen.dart';
+import 'features/auth/onboarding_flow.dart';
 import 'features/feed/feed_screen.dart';
 import 'features/listing_details/listing_details_screen.dart';
 import 'features/post/post_screen.dart';
@@ -25,12 +25,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (profileStatus == ProfileStatus.loading) return null;
       if (state.uri.path == '/splash') return null;
       final user = authState.asData?.value;
-      final isAuthRoute = state.uri.path.startsWith('/auth');
-      if (user == null && !isAuthRoute) {
-        final from = Uri.encodeComponent(state.uri.toString());
-        return '/auth/phone?from=$from';
+      final isOnboardingRoute = state.uri.path.startsWith('/onboarding');
+      if (user == null && !isOnboardingRoute) {
+        return '/onboarding';
       }
-      if (user != null && isAuthRoute) {
+      if (user != null && isOnboardingRoute) {
         return '/home';
       }
       return null;
@@ -45,15 +44,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: '/auth/phone',
-        name: 'phoneAuth',
-        pageBuilder: (context, state) {
-          final redirectTo = state.uri.queryParameters['from'];
-          return _buildPage(
-            state,
-            PhoneAuthScreen(redirectTo: redirectTo),
-          );
-        },
+        path: '/onboarding',
+        name: 'onboarding',
+        pageBuilder: (context, state) => _buildPage(
+          state,
+          const OnboardingFlow(),
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -159,7 +155,13 @@ CustomTransitionPage<void> _buildFadePage(GoRouterState state, Widget child) {
       );
       return FadeTransition(
         opacity: curved,
-        child: child,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.02),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
       );
     },
   );

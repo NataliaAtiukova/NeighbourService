@@ -53,17 +53,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final profileStatus = ref.watch(profileStatusProvider);
+    final authState = ref.watch(authStateProvider);
+    final user = authState.asData?.value;
     final theme = Theme.of(context);
 
-    if (!_navigated &&
-        _minTimeElapsed &&
-        profileStatus != ProfileStatus.loading) {
+    final canNavigate = profileStatus != ProfileStatus.loading &&
+        (user != null || _minTimeElapsed);
+
+    if (!_navigated && canNavigate) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _navigated = true;
         switch (profileStatus) {
           case ProfileStatus.signedOut:
-            context.go('/auth/phone');
+            context.go('/onboarding');
             break;
           case ProfileStatus.ready:
             context.go('/home');
