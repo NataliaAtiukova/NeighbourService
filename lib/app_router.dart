@@ -9,6 +9,7 @@ import 'features/listing_details/listing_details_screen.dart';
 import 'features/post/post_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/splash/splash_screen.dart';
+import 'shared/utils/app_flags.dart';
 import 'shared/widgets/app_scaffold.dart';
 import 'shared/utils/motion.dart';
 
@@ -24,6 +25,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.isLoading) return null;
       if (profileStatus == ProfileStatus.loading) return null;
       if (state.uri.path == '/splash') return null;
+      if (kBypassSmsAuth) {
+        // TEMP: SMS auth disabled, allow direct access to app shell.
+        if (state.uri.path.startsWith('/onboarding')) {
+          return '/home';
+        }
+        return null;
+      }
       final user = authState.asData?.value;
       final isOnboardingRoute = state.uri.path.startsWith('/onboarding');
       if (user == null && !isOnboardingRoute) {

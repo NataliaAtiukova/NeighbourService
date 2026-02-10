@@ -1,8 +1,11 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/models/listing.dart';
 import 'data/models/review.dart';
@@ -13,8 +16,12 @@ import 'data/repositories/mock/mock_listings_repository.dart';
 import 'data/repositories/firebase/firebase_user_profile_repository.dart';
 import 'data/repositories/user_profile_repository.dart';
 import 'shared/utils/constants.dart';
+import 'shared/utils/app_flags.dart';
 
 final listingsRepositoryProvider = Provider<ListingsRepository>((ref) {
+  if (kBypassSmsAuth) {
+    return MockListingsRepository();
+  }
   final useFirebase = Firebase.apps.isNotEmpty;
   if (useFirebase) {
     return FirebaseListingsRepository(
@@ -342,28 +349,99 @@ class SettingsState {
   const SettingsState({
     this.themeMode = ThemeMode.dark,
     this.suburb = 'Sea Point',
+    this.displayName = 'You',
+    this.phoneNumber = '',
+    this.localUserId = '',
   });
 
   final ThemeMode themeMode;
   final String suburb;
+  final String displayName;
+  final String phoneNumber;
+  final String localUserId;
 
-  SettingsState copyWith({ThemeMode? themeMode, String? suburb}) {
+  SettingsState copyWith({
+    ThemeMode? themeMode,
+    String? suburb,
+    String? displayName,
+    String? phoneNumber,
+    String? localUserId,
+  }) {
     return SettingsState(
       themeMode: themeMode ?? this.themeMode,
       suburb: suburb ?? this.suburb,
+      displayName: displayName ?? this.displayName,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      localUserId: localUserId ?? this.localUserId,
     );
   }
 }
 
 class SettingsController extends StateNotifier<SettingsState> {
-  SettingsController() : super(const SettingsState());
+  SettingsController() : super(const SettingsState()) {
+    _loadFromPrefs();
+  }
 
   void updateTheme(ThemeMode themeMode) {
     state = state.copyWith(themeMode: themeMode);
+    _persist();
   }
 
   void updateSuburb(String suburb) {
     state = state.copyWith(suburb: suburb);
+    _persist();
+  }
+
+  void updateDisplayName(String displayName) {
+    state = state.copyWith(displayName: displayName);
+    _persist();
+  }
+
+  void updatePhoneNumber(String phoneNumber) {
+    state = state.copyWith(phoneNumber: phoneNumber);
+    _persist();
+  }
+
+  String ensureLocalUserId() {
+    if (state.localUserId.isNotEmpty) return state.localUserId;
+    final suffix = Random().nextInt(999999).toString().padLeft(6, '0');
+    final localUserId =
+        'local_${DateTime.now().millisecondsSinceEpoch}_$suffix';
+    state = state.copyWith(localUserId: localUserId);
+    _persist();
+    return localUserId;
+  }
+
+  Future<void> _loadFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final themeIndex = prefs.getInt('settings_theme_mode');
+    final suburb = prefs.getString('settings_suburb');
+    final displayName = prefs.getString('settings_display_name');
+    final phoneNumber = prefs.getString('settings_phone_number');
+    var localUserId = prefs.getString('settings_local_user_id') ?? '';
+    if (localUserId.isEmpty) {
+      final suffix = Random().nextInt(999999).toString().padLeft(6, '0');
+      localUserId = 'local_${DateTime.now().millisecondsSinceEpoch}_$suffix';
+      await prefs.setString('settings_local_user_id', localUserId);
+    }
+    state = state.copyWith(
+      themeMode: themeIndex != null ? ThemeMode.values[themeIndex] : null,
+      suburb: suburb,
+      displayName: displayName,
+      phoneNumber: phoneNumber,
+      localUserId: localUserId,
+    );
+  }
+
+  Future<void> _persist() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('settings_theme_mode', state.themeMode.index);
+    await prefs.setString('settings_suburb', state.suburb);
+    await prefs.setString('settings_display_name', state.displayName);
+    await prefs.setString('settings_phone_number', state.phoneNumber);
+    if (state.localUserId.isNotEmpty) {
+      await prefs.setString('settings_local_user_id', state.localUserId);
+    }
   }
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app_providers.dart';
+import '../../shared/utils/app_flags.dart';
 import '../../shared/utils/constants.dart';
 import '../../shared/utils/formatters.dart';
 
@@ -15,11 +16,15 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool _didInitName = false;
+  bool _didInitPhone = false;
+  String? _currentUserId;
 
   @override
   void dispose() {
     _nameController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -30,11 +35,160 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final firebaseUser = authState.asData?.value;
     final profileAsync = ref.watch(userProfileProvider);
 
+    if (firebaseUser?.uid != _currentUserId) {
+      _currentUserId = firebaseUser?.uid;
+      _didInitName = false;
+      _didInitPhone = false;
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: Builder(
         builder: (context) {
           if (firebaseUser == null) {
+            if (kBypassSmsAuth) {
+              if (!_didInitName) {
+                _nameController.text = settings.displayName;
+                _didInitName = true;
+              }
+              if (!_didInitPhone) {
+                _phoneController.text = settings.phoneNumber;
+                _didInitPhone = true;
+              }
+              final myListingsAsync =
+                  ref.watch(myListingsProvider(settings.localUserId));
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  ListTile(
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.person_outline),
+                    ),
+                    title: Text(settings.displayName.isEmpty
+                        ? 'Guest'
+                        : settings.displayName),
+                    subtitle: Text(settings.phoneNumber.isEmpty
+                        ? 'No phone number'
+                        : settings.phoneNumber),
+                    trailing: const Chip(
+                      label: Text('Guest mode'),
+                      avatar: Icon(Icons.shield_outlined, size: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Display name',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Phone number',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone number',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () {
+                      final name = _nameController.text.trim();
+                      final phone = _phoneController.text.trim();
+                      final settingsController =
+                          ref.read(settingsProvider.notifier);
+                      settingsController.updateDisplayName(
+                        name.isEmpty ? 'You' : name,
+                      );
+                      settingsController.updatePhoneNumber(phone);
+                      settingsController.ensureLocalUserId();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Profile saved')),
+                      );
+                    },
+                    child: const Text('Save'),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Suburb',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: settings.suburb,
+                    decoration: const InputDecoration(labelText: 'Suburb'),
+                    items: kSuburbs
+                        .map(
+                          (suburb) => DropdownMenuItem(
+                            value: suburb,
+                            child: Text(suburb),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      ref.read(settingsProvider.notifier).updateSuburb(value);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Suburb updated')),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Text('My listings',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  myListingsAsync.when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (error, _) => const Text('Unable to load listings'),
+                    data: (myListings) {
+                      if (myListings.isEmpty) {
+                        return Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('No listings yet'),
+                                const SizedBox(height: 8),
+                                FilledButton(
+                                  onPressed: () => context.go('/post'),
+                                  child: const Text('Create listing'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                      return Column(
+                        children: myListings
+                            .map(
+                              (listing) => Card(
+                                child: ListTile(
+                                  title: Text(listing.title),
+                                  subtitle: Text(formatPrice(listing.priceFrom)),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.more_vert),
+                                    onPressed: () => _showListingActions(
+                                      ref,
+                                      context,
+                                      listingId: listing.id,
+                                      userId: settings.localUserId,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      );
+                    },
+                  ),
+                ],
+              );
+            }
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),

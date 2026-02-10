@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app_providers.dart';
 import '../../data/models/listing.dart';
+import '../../shared/utils/app_flags.dart';
 import '../../shared/utils/constants.dart';
 import '../../shared/utils/formatters.dart';
 import '../../shared/widgets/fade_slide_in.dart';
@@ -75,11 +76,14 @@ class _PostScreenState extends ConsumerState<PostScreen> {
     final authState = ref.watch(authStateProvider);
     final firebaseUser = authState.asData?.value;
     final profile = ref.watch(userProfileProvider).asData?.value;
+    final settings = ref.watch(settingsProvider);
     final listingAsync = widget.listingId == null
         ? const AsyncValue<Listing?>.data(null)
         : ref.watch(listingDetailsProvider(widget.listingId!));
     final whatsappNumber =
-        firebaseUser?.phoneNumber ?? profile?.phoneNumber ?? '';
+        firebaseUser?.phoneNumber ??
+            profile?.phoneNumber ??
+            settings.phoneNumber;
 
     if (_animateSections) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -313,7 +317,7 @@ class _PostScreenState extends ConsumerState<PostScreen> {
 
     if (_isSubmitting) return;
     final firebaseUser = ref.read(authStateProvider).asData?.value;
-    if (firebaseUser == null) {
+    if (firebaseUser == null && !kBypassSmsAuth) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please sign in to publish a listing.')),
       );
@@ -329,11 +333,20 @@ class _PostScreenState extends ConsumerState<PostScreen> {
         : '$baseDescription\n\nAvailability: $availability';
 
     final baseListing = _editingListing;
+    final ownerUid = firebaseUser?.uid ??
+        ref.read(settingsProvider.notifier).ensureLocalUserId();
+    if (ownerUid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to create listing.')),
+      );
+      setState(() => _isSubmitting = false);
+      return;
+    }
     final listing = Listing(
       id: widget.listingId ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       type: _type,
-      ownerUid: baseListing?.ownerUid ?? firebaseUser.uid,
+      ownerUid: baseListing?.ownerUid ?? ownerUid,
       category: _selectedCategory!,
       title: _titleController.text.trim(),
       description: description,
@@ -343,8 +356,8 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       needsElectricity: _needsElectricity,
       rating: baseListing?.rating ?? 0,
       reviewsCount: baseListing?.reviewsCount ?? 0,
-      isPhoneVerified: baseListing?.isPhoneVerified ?? true,
-      whatsappNumber: whatsappNumber,
+      isPhoneVerified: baseListing?.isPhoneVerified ?? firebaseUser != null,
+      whatsappNumber: whatsappNumber.isNotEmpty ? whatsappNumber : 'N/A',
       createdAt: baseListing?.createdAt ?? DateTime.now(),
     );
 
@@ -354,7 +367,13 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       } else {
         await ref.read(listingsControllerProvider.notifier).add(listing);
       }
-      ref.invalidate(myListingsProvider(firebaseUser.uid));
+      if (firebaseUser != null) {
+        ref.invalidate(myListingsProvider(firebaseUser.uid));
+      } else {
+        final localUserId =
+            ref.read(settingsProvider.notifier).ensureLocalUserId();
+        ref.invalidate(myListingsProvider(localUserId));
+      }
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

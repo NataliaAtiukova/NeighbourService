@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app_providers.dart';
+import '../../shared/utils/app_flags.dart';
 import '../../shared/utils/motion.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -64,6 +65,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _navigated = true;
+        if (kBypassSmsAuth) {
+          context.go('/home');
+          return;
+        }
         switch (profileStatus) {
           case ProfileStatus.signedOut:
             context.go('/onboarding');
