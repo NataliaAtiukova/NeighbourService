@@ -1,44 +1,34 @@
-# neighbour_services
+# NeighbourService
 
-A new Flutter project.
+Flutter app for local neighborhood services.
 
-## Getting Started
+## Status
 
-This project is a starting point for a Flutter application.
+Portfolio/WIP project.
 
-## Firestore Rules (MVP guidance)
+## Stack
 
+- Flutter
+- Dart
+- Firebase/Firestore (project setup dependent)
+
+## Run locally
+
+1. Clone the repository:
+```bash
+git clone https://github.com/NataliaAtiukova/NeighbourService.git
+cd NeighbourService
 ```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow create, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false;
-    }
-
-    match /listings/{listingId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null
-        && request.auth.uid == resource.data.ownerUid;
-
-      match /reviews/{reviewId} {
-        allow read: if true;
-        allow create: if request.auth != null;
-        allow update, delete: if false;
-      }
-    }
-  }
-}
+2. Install dependencies:
+```bash
+flutter pub get
+```
+3. Run on emulator/device:
+```bash
+flutter run
 ```
 
-A few resources to get you started if this is your first Flutter project:
+## Notes
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- Main source code is in `lib/`.
+- If Firebase is used in your setup, add your own Firebase config files before running.
